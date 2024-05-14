@@ -26,6 +26,7 @@ from hydromodel.datasets.data_preprocess import (
 )
 from hydromodel.models.model_config import read_model_param_dict
 from hydromodel.models.model_dict import MODEL_DICT
+from hydromodel.models.musk import MuskEvaluate  # WLF
 
 
 class Evaluator:
@@ -72,18 +73,17 @@ class Evaluator:
             qsim, qobs
         """
         model_info = self.model_info
-        p_and_e, _ = _get_pe_q_from_ts(ds)
         basins = ds["basin"].data.astype(str)
         params = _read_all_basin_params(basins, self.params_dir)
-        qsim, _ = MODEL_DICT[model_info["name"]](
-            p_and_e,
-            params,
-            # we set the warmup_length=0 but later we get results from warmup_length to the end to evaluate
-            warmup_length=0,
-            **model_info,
-            **{"param_range_file": self.param_range_file},
-        )
-        qsim, qobs = self._convert_streamflow_units(ds, qsim)
+        if self.data_type == 'owndata-musk':  # WLF
+            p_and_e, _, _ = _get_pe_q_from_ts(ds, self.data_type)
+            qsim, _ = MODEL_DICT[model_info["name"]](p_and_e,params,warmup_length=0,**model_info,**{"param_range_file": self.param_range_file},)
+            qsim, qin, qobs = self._convert_streamflow_units(ds, qsim)
+            qsim = MuskEvaluate(qsim, qin, params, self.param_range_file, self.data_dir)
+        else:
+            p_and_e, _ = _get_pe_q_from_ts(ds)
+            qsim, _ = MODEL_DICT[model_info["name"]](p_and_e,params,warmup_length=0,**model_info,**{"param_range_file": self.param_range_file},)
+            qsim, qobs = self._convert_streamflow_units(ds, qsim)
         return qsim, qobs
 
     def save_results(self, ds, qsim, qobs):
@@ -110,6 +110,7 @@ class Evaluator:
         times = test_data["time"].data
         basins = test_data["basin"].data
         flow_name = remove_unit_from_name(FLOW_NAME)
+        nodeflow_name = remove_unit_from_name(NODE_FLOW_NAME)  # WLF
         flow_dataarray = xr.DataArray(
             qsim.squeeze(-1),
             coords=[("time", times), ("basin", basins)],
@@ -120,13 +121,13 @@ class Evaluator:
         ds[flow_name] = flow_dataarray
         target_unit = "m^3/s"
         basin_area = get_basin_area(data_type, data_dir, basins)
-        ds_simflow = streamflow_unit_conv(
-            ds, basin_area, target_unit=target_unit, inverse=True
-        )
-        ds_obsflow = streamflow_unit_conv(
-            test_data[[flow_name]], basin_area, target_unit=target_unit, inverse=True
-        )
-        return ds_simflow, ds_obsflow
+        ds_simflow = streamflow_unit_conv(ds, basin_area, target_unit=target_unit, inverse=True)
+        ds_obsflow = streamflow_unit_conv(test_data[[flow_name]], basin_area, target_unit=target_unit, inverse=True)
+        if data_type == 'owndata-musk':  # WLF
+            ds_inflow = streamflow_unit_conv(test_data[[nodeflow_name]], basin_area, target_unit=target_unit, inverse=True)
+            return ds_simflow, ds_inflow, ds_obsflow
+        else:
+            return ds_simflow, ds_obsflow
 
     def _summarize_parameters(self, basin_ids):
         """

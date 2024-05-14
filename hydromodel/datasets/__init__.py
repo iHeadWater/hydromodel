@@ -15,7 +15,7 @@ POSSIBLE_TIME_FORMATS = [
 ]
 ID_NAME = "id"
 NAME_NAME = "name"
-
+LEN_NAME = "len(km)"  # WLF
 
 def remove_unit_from_name(name_with_unit):
     """

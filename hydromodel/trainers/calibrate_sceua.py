@@ -6,6 +6,7 @@ import pandas as pd
 from spotpy.parameter import Uniform, ParameterSet
 from hydromodel.models.model_config import read_model_param_dict
 from hydromodel.models.model_dict import LOSS_DICT, MODEL_DICT
+from hydromodel.models.musk import MuskCali  # WLF
 
 
 class SpotSetup(object):
@@ -154,6 +155,58 @@ class SpotSetup(object):
                 total += like_
         return total / count
 
+class SpotSetupMusk(object):  # WLF
+    def __init__(self, p_and_e, qin, data_dir, qobs, warmup_length=365, model=None, param_file=None, loss=None, basin_index=None):
+        if model is None:
+            model = {"name": "xaj_mz", "source_type": "sources5mm", "source_book": "HF",}
+        if loss is None:
+            loss = {"type": "time_series", "obj_func": "rmse", "events": None,}
+        self.param_range_file = {"param_range_file": param_file}
+        param_range = read_model_param_dict(param_file)
+        self.parameter_names = param_range[model["name"]]["param_name"]
+        self.model = model
+        self.params = []
+        self.params.extend(Uniform(par_name, low=0.0, high=1.0) for par_name in self.parameter_names)
+        self.loss = loss
+        self.p_and_e = p_and_e
+        self.qin = qin[warmup_length:, :, :]
+        self.data_dir = data_dir
+        self.basin_index = basin_index
+        self.true_obs = qobs[warmup_length:, :, :]
+        self.warmup_length = warmup_length
+
+    def parameters(self):
+        return spotpy.parameter.generate(self.params)
+
+    def simulation(self, x: ParameterSet) -> Union[list, np.array]:
+        params = np.array(x).reshape(1, -1)
+        sim, _ = MODEL_DICT[self.model["name"]](self.p_and_e,params,warmup_length=self.warmup_length,**self.model,**self.param_range_file)
+        sim = MuskCali(sim, self.qin, params, self.param_range_file, self.data_dir, self.basin_index)  # WLF
+        return sim
+
+    def evaluation(self) -> Union[list, np.array]:
+        return self.true_obs
+
+    def objectivefunction(self, simulation: Union[list, np.array], evaluation: Union[list, np.array], params=None) -> float:
+        if self.loss["type"] == "time_series":
+            return LOSS_DICT[self.loss["obj_func"]](evaluation, simulation)
+        time = self.loss["events"]
+        if time is None:
+            raise ValueError("time should not be None since you choose events, otherwise choose time_series")
+        calibrate_starttime = pd.to_datetime("2012-06-10 0:00:00")
+        calibrate_endtime = pd.to_datetime("2019-12-31 23:00:00")
+        total = 0
+        count = 0
+        for i in range(len(time)):
+            if time.iloc[i, 0] < calibrate_endtime:
+                start_num = (time.iloc[i, 0] - calibrate_starttime - pd.Timedelta(hours=365)) / pd.Timedelta(hours=1)
+                end_num = (time.iloc[i, 1] - calibrate_starttime - pd.Timedelta(hours=365)) / pd.Timedelta(hours=1)
+                start_num = int(start_num)
+                end_num = int(end_num)
+                like_ = LOSS_DICT[self.loss["obj_func"]](valuation[start_num:end_num,], simulation[start_num:end_num,])
+                count += 1
+                total += like_
+        return total / count
 
 def calibrate_by_sceua(
     basins,
@@ -165,6 +218,9 @@ def calibrate_by_sceua(
     algorithm=None,
     loss=None,
     param_file=None,
+    qin=None,
+    data_dir=None,
+    data_type=None,
 ):
     """
     Function for calibrating model by SCE-UA
@@ -229,29 +285,40 @@ def calibrate_by_sceua(
     peps = algorithm["peps"]
     pcento = algorithm["pcento"]
     np.random.seed(random_seed)  # Makes the results reproduceable
-    for i in range(len(basins)):
-        # Initialize the xaj example
-        # In this case, we tell the setup which algorithm we want to use, so
-        # we can use this exmaple for different algorithms
-        spot_setup = SpotSetup(
-            p_and_e[:, i : i + 1, :],
-            qobs[:, i : i + 1, :],
-            warmup_length=warmup_length,
-            model=model,
-            loss=loss,
-            param_file=param_file,
-        )
-        if not os.path.exists(dbname):
-            os.makedirs(dbname)
-        db_basin = os.path.join(dbname, basins[i])
-        # Select number of maximum allowed repetitions
-        sampler = spotpy.algorithms.sceua(
-            spot_setup,
-            dbname=db_basin,
-            dbformat="csv",
-            random_state=random_seed,
-        )
-        # Start the sampler, one can specify ngs, kstop, peps and pcento id desired
-        sampler.sample(rep, ngs=ngs, kstop=kstop, peps=peps, pcento=pcento)
-        print("Calibrate Finished!")
+    if data_type == 'owndata-musk':  # WLF
+        for i in range(len(basins)):
+            spot_setup = SpotSetupMusk(
+                p_and_e[:, i : i + 1, :],qin[:, i : i + 1, :],data_dir,qobs[:, i : i + 1, :],warmup_length=warmup_length,model=model,loss=loss,param_file=param_file,basin_index=i)
+            if not os.path.exists(dbname):
+                os.makedirs(dbname)
+            db_basin = os.path.join(dbname, basins[i])
+            sampler = spotpy.algorithms.sceua(spot_setup,dbname=db_basin,dbformat="csv",random_state=random_seed,)
+            sampler.sample(rep, ngs=ngs, kstop=kstop, peps=peps, pcento=pcento)
+            print("Calibrate Finished!")
+    else:
+        for i in range(len(basins)):
+            # Initialize the xaj example
+            # In this case, we tell the setup which algorithm we want to use, so
+            # we can use this exmaple for different algorithms
+            spot_setup = SpotSetup(
+                p_and_e[:, i : i + 1, :],
+                qobs[:, i : i + 1, :],
+                warmup_length=warmup_length,
+                model=model,
+                loss=loss,
+                param_file=param_file,
+            )
+            if not os.path.exists(dbname):
+                os.makedirs(dbname)
+            db_basin = os.path.join(dbname, basins[i])
+            # Select number of maximum allowed repetitions
+            sampler = spotpy.algorithms.sceua(
+                spot_setup,
+                dbname=db_basin,
+                dbformat="csv",
+                random_state=random_seed,
+            )
+            # Start the sampler, one can specify ngs, kstop, peps and pcento id desired
+            sampler.sample(rep, ngs=ngs, kstop=kstop, peps=peps, pcento=pcento)
+            print("Calibrate Finished!")
     return sampler

@@ -15,7 +15,8 @@ import sys
 import os
 from pathlib import Path
 import yaml
-
+import logging  # WLF
+logging.basicConfig(level=logging.WARNING)  # WLF
 
 repo_path = os.path.dirname(Path(os.path.abspath(__file__)).parent)
 sys.path.append(repo_path)
@@ -60,18 +61,12 @@ def calibrate(args):
     print("Start to calibrate the model")
 
     if cv_fold <= 1:
-        p_and_e, qobs = _get_pe_q_from_ts(train_and_test_data[0])
-        calibrate_by_sceua(
-            basin_ids,
-            p_and_e,
-            qobs,
-            os.path.join(where_save, "sceua_xaj"),
-            warmup,
-            model=model_info,
-            algorithm=algo_info,
-            loss=loss_info,
-            param_file=param_range_file,
-        )
+        if data_type == 'owndata-musk':  # WLF
+            p_and_e, qin, qobs = _get_pe_q_from_ts(train_and_test_data[0], data_type)
+            calibrate_by_sceua(basin_ids, p_and_e,qobs,os.path.join(where_save, "sceua_xaj"),warmup,model=model_info,algorithm=algo_info,loss=loss_info,param_file=param_range_file, qin=qin, data_dir=data_dir, data_type=data_type)
+        else:
+            p_and_e, qobs = _get_pe_q_from_ts(train_and_test_data[0])
+            calibrate_by_sceua(basin_ids, p_and_e,qobs,os.path.join(where_save, "sceua_xaj"),warmup,model=model_info,algorithm=algo_info,loss=loss_info,param_file=param_range_file,)
     else:
         for i in range(cv_fold):
             train_data, _ = train_and_test_data[i]
@@ -107,7 +102,7 @@ if __name__ == "__main__":
         dest="data_type",
         help="CAMELS dataset or your own data, such as 'camels' or 'owndata'",
         # default="camels",
-        default="owndata",
+        default="owndata-musk",  # WLF  owndata, owndata-musk
         type=str,
     )
     parser.add_argument(
@@ -117,7 +112,7 @@ if __name__ == "__main__":
         + " as we use SETTING to set the data path, you can directly choose camels_us;"
         + " for your own data, you should set the absolute path of your data directory",
         # default="camels_us",
-        default="C:\\Users\\wenyu\\OneDrive\\data\\biliuhe",
+        default=str(repo_path)+"\\result",  # WLF
         type=str,
     )
     parser.add_argument(
@@ -190,7 +185,7 @@ if __name__ == "__main__":
         dest="param_range_file",
         help="The file of the parameter range",
         # default=None,
-        default="C:\\Users\\wenyu\\OneDrive\\data\\biliuhe\\param_range.yaml",
+        default=str(repo_path)+"\\result\\param_range.yaml",  # WLF
         type=str,
     )
     parser.add_argument(
