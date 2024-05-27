@@ -15,6 +15,7 @@ import numpy as np
 import xarray as xr
 import spotpy
 import yaml
+import netCDF4
 
 from hydroutils import hydro_file, hydro_stat
 from hydrodatasource.utils.utils import streamflow_unit_conv
@@ -26,8 +27,7 @@ from hydromodel.datasets.data_preprocess import (
 )
 from hydromodel.models.model_config import read_model_param_dict
 from hydromodel.models.model_dict import MODEL_DICT
-from hydromodel.models.musk import MuskEvaluate  # WLF
-
+from hydromodel.models.musk import Musk
 
 class Evaluator:
     def __init__(self, cali_dir, param_dir=None, eval_dir=None):
@@ -54,6 +54,7 @@ class Evaluator:
         self.save_dir = eval_dir
         self.params_dir = param_dir
         self.param_range_file = cali_config["param_range_file"]
+        self.subbasin = cali_config["subbasin"]
         if not os.path.exists(param_dir):
             os.makedirs(param_dir)
         if not os.path.exists(eval_dir):
@@ -73,17 +74,38 @@ class Evaluator:
             qsim, qobs
         """
         model_info = self.model_info
-        basins = ds["basin"].data.astype(str)
-        params = _read_all_basin_params(basins, self.params_dir)
-        if self.data_type == 'owndata-musk':  # WLF
-            p_and_e, _, _ = _get_pe_q_from_ts(ds, self.data_type)
-            qsim, _ = MODEL_DICT[model_info["name"]](p_and_e,params,warmup_length=0,**model_info,**{"param_range_file": self.param_range_file},)
-            qsim, qin, qobs = self._convert_streamflow_units(ds, qsim)
-            qsim = MuskEvaluate(qsim, qin, params, self.param_range_file, self.data_dir)
+        if self.subbasin==True:
+            p_and_e, qin, _ = _get_pe_q_from_ts(ds, subbasin=True)
         else:
             p_and_e, _ = _get_pe_q_from_ts(ds)
-            qsim, _ = MODEL_DICT[model_info["name"]](p_and_e,params,warmup_length=0,**model_info,**{"param_range_file": self.param_range_file},)
-            qsim, qobs = self._convert_streamflow_units(ds, qsim)
+        basins = ds["basin"].data.astype(str)
+        params = _read_all_basin_params(basins, self.params_dir)
+        qsim, _ = MODEL_DICT[model_info["name"]](
+            p_and_e,
+            params,
+            warmup_length=0,
+            **model_info,
+            **{"param_range_file": self.param_range_file},
+        )
+        if self.subbasin==True:
+            print("启用马斯京根")
+            data = netCDF4.Dataset(os.path.join(self.data_dir, "attributes.nc"))
+            datatime = netCDF4.Dataset(os.path.join(self.data_dir, "timeseries.nc"))
+            time_interval_hours = int(model_info["time_interval_hours"]) if "time_interval_hours" in model_info else 1
+            area, area2 = data.variables['area'][0],  data.variables['area2'][0]
+            area1 = area-area2
+            sim1 = np.array(qsim*area1/(3600*time_interval_hours*1000/1000000)).flatten()  # 上游新安江流量
+            qin = np.array(qin*area/(3600*time_interval_hours*1000/1000000)).flatten()   # 节点流量
+            sim1 = np.where(np.isnan(qin), sim1, qin)  # 如果有节点用节点，否则新安江
+            param_range = read_model_param_dict(self.param_range_file)
+            param_ranges = param_range[self.model_info['name']]["param_range"]
+            MK = [(value[1] - value[0]) * params[:, i] + value[0]for i, (key, value) in enumerate(param_ranges.items())][15][0]
+            MX = [(value[1] - value[0]) * params[:, i] + value[0]for i, (key, value) in enumerate(param_ranges.items())][16][0]
+            sim1 = Musk(sim1, MK, MX, time_interval_hours)  # 马斯京根，节点流量传播到出口
+            sim1 = sim1.reshape(qsim.shape)
+            sim2 = qsim*area2/(3600*time_interval_hours*1000/1000000)  # 下游新安江流量
+            qsim = (sim1+sim2)/area*(3600*time_interval_hours*1000/1000000)  # 合并流量转径流深
+        qsim, qobs = self._convert_streamflow_units(ds, qsim)
         return qsim, qobs
 
     def save_results(self, ds, qsim, qobs):
@@ -110,7 +132,6 @@ class Evaluator:
         times = test_data["time"].data
         basins = test_data["basin"].data
         flow_name = remove_unit_from_name(FLOW_NAME)
-        nodeflow_name = remove_unit_from_name(NODE_FLOW_NAME)  # WLF
         flow_dataarray = xr.DataArray(
             qsim.squeeze(-1),
             coords=[("time", times), ("basin", basins)],
@@ -121,13 +142,13 @@ class Evaluator:
         ds[flow_name] = flow_dataarray
         target_unit = "m^3/s"
         basin_area = get_basin_area(data_type, data_dir, basins)
-        ds_simflow = streamflow_unit_conv(ds, basin_area, target_unit=target_unit, inverse=True)
-        ds_obsflow = streamflow_unit_conv(test_data[[flow_name]], basin_area, target_unit=target_unit, inverse=True)
-        if data_type == 'owndata-musk':  # WLF
-            ds_inflow = streamflow_unit_conv(test_data[[nodeflow_name]], basin_area, target_unit=target_unit, inverse=True)
-            return ds_simflow, ds_inflow, ds_obsflow
-        else:
-            return ds_simflow, ds_obsflow
+        ds_simflow = streamflow_unit_conv(
+            ds, basin_area, target_unit=target_unit, inverse=True
+        )
+        ds_obsflow = streamflow_unit_conv(
+            test_data[[flow_name]], basin_area, target_unit=target_unit, inverse=True
+        )
+        return ds_simflow, ds_obsflow
 
     def _summarize_parameters(self, basin_ids):
         """
@@ -157,7 +178,7 @@ class Evaluator:
             params.append(params_df)
         params_dfs = pd.concat(params, axis=0)
         params_dfs.index = basin_ids
-        print(params_dfs)
+        # print(params_dfs)
         params_csv_file = os.path.join(param_dir, "basins_norm_params.csv")
         params_dfs.to_csv(params_csv_file, sep=",", index=True, header=True)
 
@@ -181,7 +202,7 @@ class Evaluator:
         renormalization_params_dfs = pd.concat(renormalization_params, axis=1)
         renormalization_params_dfs.index = model_param_dict[model_name]["param_name"]
         renormalization_params_dfs.columns = basin_ids
-        print(renormalization_params_dfs)
+        # print(renormalization_params_dfs)
         params_csv_file = os.path.join(param_dir, "basins_denorm_params.csv")
         renormalization_params_dfs.transpose().to_csv(
             params_csv_file, sep=",", index=True, header=True

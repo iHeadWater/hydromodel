@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-03-25 09:21:56
-LastEditTime: 2024-03-25 17:08:08
-LastEditors: Wenyu Ouyang
+LastEditTime: 2024-05-28 07:00:00
+LastEditors: Fan
 Description: Script for preparing data
-FilePath: \hydro-model-xaj\scripts\prepare_data.py
+FilePath: \hydromodel\scripts\prepare_data.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -12,6 +12,8 @@ from pathlib import Path
 import sys
 import os
 import argparse
+import logging  # 去除debug信息
+logging.basicConfig(level=logging.WARNING)
 
 current_script_path = Path(os.path.realpath(__file__))
 repo_root_dir = current_script_path.parent.parent
@@ -34,7 +36,7 @@ if __name__ == "__main__":
         "--origin_data_dir",
         type=str,
         help="Path to your hydrological data",
-        default="C:\\Users\\wenyu\\OneDrive\\data\\biliuhe",
+        default=str(repo_root_dir)+"\\result",  
     )
 
     args = parser.parse_args()

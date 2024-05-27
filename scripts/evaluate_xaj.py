@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-03-26 12:00:12
-LastEditTime: 2024-03-27 16:20:25
-LastEditors: Wenyu Ouyang
+LastEditTime: 2024-05-28 07:00:00
+LastEditors: Fan
 Description: evaluate a calibrated hydrological model
 FilePath: \hydro-model-xaj\scripts\evaluate_xaj.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
@@ -12,7 +12,10 @@ import argparse
 import os
 import sys
 from pathlib import Path
-
+import logging
+import warnings
+logging.basicConfig(level=logging.WARNING)
+warnings.filterwarnings("ignore")
 
 repo_path = os.path.dirname(Path(os.path.abspath(__file__)).parent)
 sys.path.append(repo_path)
@@ -26,13 +29,14 @@ def evaluate(args):
     cali_dir = Path(os.path.join(repo_path, "result", exp))
     cali_config = read_yaml_config(os.path.join(cali_dir, "config.yaml"))
     kfold = cali_config["cv_fold"]
-    basins = cali_config["basin_id"]
+    basin_ids = cali_config["basin_id"]
     warmup = cali_config["warmup"]
     data_type = cali_config["data_type"]
     data_dir = cali_config["data_dir"]
     train_period = cali_config["calibrate_period"]
     test_period = cali_config["test_period"]
     periods = cali_config["period"]
+    subbasin = cali_config["subbasin"]
     train_and_test_data = cross_val_split_tsdata(
         data_type,
         data_dir,
@@ -41,7 +45,8 @@ def evaluate(args):
         test_period,
         periods,
         warmup,
-        basins,
+        basin_ids,
+        subbasin,
     )
     if kfold <= 1:
         print("Start to evaluate")

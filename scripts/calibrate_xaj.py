@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-11-19 17:27:05
-LastEditTime: 2024-03-27 15:56:19
-LastEditors: Wenyu Ouyang
+LastEditTime: 2024-05-28 07:00:00
+LastEditors: Fan
 Description: the script to calibrate a model for CAMELS basin
 FilePath: \hydro-model-xaj\scripts\calibrate_xaj.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
@@ -15,8 +15,8 @@ import sys
 import os
 from pathlib import Path
 import yaml
-import logging  # WLF
-logging.basicConfig(level=logging.WARNING)  # WLF
+import logging
+logging.basicConfig(level=logging.WARNING)
 
 repo_path = os.path.dirname(Path(os.path.abspath(__file__)).parent)
 sys.path.append(repo_path)
@@ -25,6 +25,7 @@ from hydromodel.datasets.data_preprocess import (
     _get_pe_q_from_ts,
     cross_val_split_tsdata,
 )
+from hydromodel.trainers.calibrate_sceuamusk import calibrate_by_sceuamusk  # 马斯京根率定
 from hydromodel.trainers.calibrate_sceua import calibrate_by_sceua
 
 
@@ -42,6 +43,7 @@ def calibrate(args):
     algo_info = args.algorithm
     loss_info = args.loss
     param_range_file = args.param_range_file
+    subbasin = args.subbasin  # 是否启用马斯京根
 
     where_save = Path(os.path.join(repo_path, "result", exp))
     if os.path.exists(where_save) is False:
@@ -56,31 +58,24 @@ def calibrate(args):
         periods,
         warmup,
         basin_ids,
+        subbasin,
     )
 
     print("Start to calibrate the model")
 
     if cv_fold <= 1:
-        if data_type == 'owndata-musk':  # WLF
-            p_and_e, qin, qobs = _get_pe_q_from_ts(train_and_test_data[0], data_type)
-            calibrate_by_sceua(basin_ids, p_and_e,qobs,os.path.join(where_save, "sceua_xaj"),warmup,model=model_info,algorithm=algo_info,loss=loss_info,param_file=param_range_file, qin=qin, data_dir=data_dir, data_type=data_type)
+        if subbasin == True:
+            print("启用马斯京根")
+            p_and_e, qin, qobs = _get_pe_q_from_ts(train_and_test_data[0], subbasin)
+            calibrate_by_sceuamusk(basin_ids,p_and_e,qobs,os.path.join(where_save, "sceua_xaj"),warmup,model=model_info,algorithm=algo_info,loss=loss_info,param_file=param_range_file,data_dir=data_dir,qin=qin)
         else:
             p_and_e, qobs = _get_pe_q_from_ts(train_and_test_data[0])
-            calibrate_by_sceua(basin_ids, p_and_e,qobs,os.path.join(where_save, "sceua_xaj"),warmup,model=model_info,algorithm=algo_info,loss=loss_info,param_file=param_range_file,)
+            calibrate_by_sceua(basin_ids,p_and_e,qobs,os.path.join(where_save, "sceua_xaj"),warmup,model=model_info,algorithm=algo_info,loss=loss_info,param_file=param_range_file)
     else:
         for i in range(cv_fold):
             train_data, _ = train_and_test_data[i]
             p_and_e_cv, qobs_cv = _get_pe_q_from_ts(train_data)
-            calibrate_by_sceua(
-                basin_ids,
-                p_and_e_cv,
-                qobs_cv,
-                os.path.join(where_save, f"sceua_xaj_cv{i+1}"),
-                warmup,
-                model=model_info,
-                algorithm=algo_info,
-                loss=loss_info,
-            )
+            calibrate_by_sceua(basin_ids,p_and_e_cv,qobs_cv,os.path.join(where_save, f"sceua_xaj_cv{i+1}"),warmup,model=model_info,algorithm=algo_info,loss=loss_info,param_file=param_range_file)
 
     # Save the parameter range file to result directory
     shutil.copy(param_range_file, where_save)
@@ -101,8 +96,7 @@ if __name__ == "__main__":
         "--data_type",
         dest="data_type",
         help="CAMELS dataset or your own data, such as 'camels' or 'owndata'",
-        # default="camels",
-        default="owndata-musk",  # WLF  owndata, owndata-musk
+        default="owndata",
         type=str,
     )
     parser.add_argument(
@@ -111,15 +105,13 @@ if __name__ == "__main__":
         help="The directory of the CAMELS dataset or your own data, for CAMELS,"
         + " as we use SETTING to set the data path, you can directly choose camels_us;"
         + " for your own data, you should set the absolute path of your data directory",
-        # default="camels_us",
-        default=str(repo_path)+"\\result",  # WLF
+        default=str(repo_path)+"\\result",
         type=str,
     )
     parser.add_argument(
         "--exp",
         dest="exp",
         help="An exp is corresponding to one data setting",
-        # default="expcamels001",
         default="expbiliuhe001",
         type=str,
     )
@@ -134,39 +126,35 @@ if __name__ == "__main__":
         "--warmup",
         dest="warmup",
         help="the number of warmup periods",
-        default=720,
+        default=360,
         type=int,
     )
     parser.add_argument(
         "--period",
         dest="period",
         help="The whole period",
-        # default=["2007-01-01", "2014-01-01"],
-        default=["2012-06-10 00:00", "2022-08-31 23:00"],
+        default=["2011-01-01 02:00", "2014-03-24 14:00"],
         nargs="+",
     )
     parser.add_argument(
         "--calibrate_period",
         dest="calibrate_period",
         help="The training period",
-        # default=["2007-01-01", "2014-01-01"],
-        default=["2012-06-10 00:00", "2017-08-31 23:00"],
+        default=["2011-01-01 02:00", "2013-02-20 20:00"],
         nargs="+",
     )
     parser.add_argument(
         "--test_period",
         dest="test_period",
         help="The testing period",
-        # default=["2007-01-01", "2014-01-01"],
-        default=["2017-09-01 00:00", "2022-08-31 23:00"],
+        default=["2013-02-20 08:00", "2014-03-24 14:00"],
         nargs="+",
     )
     parser.add_argument(
         "--basin_id",
         dest="basin_id",
         help="The basins' ids",
-        # default=["01439500", "06885500", "08104900", "09510200"],
-        default=["21401550"],
+        default=["21110400"],
         nargs="+",
     )
     parser.add_argument(
@@ -177,6 +165,7 @@ if __name__ == "__main__":
             "name": "xaj",
             "source_type": "sources5mm",
             "source_book": "HF",
+            "time_interval_hours": 6,
         },
         type=json.loads,
     )
@@ -184,8 +173,7 @@ if __name__ == "__main__":
         "--param_range_file",
         dest="param_range_file",
         help="The file of the parameter range",
-        # default=None,
-        default=str(repo_path)+"\\result\\param_range.yaml",  # WLF
+        default=str(repo_path)+"\\result\\param_range.yaml",
         type=str,
     )
     parser.add_argument(
@@ -199,23 +187,13 @@ if __name__ == "__main__":
         "peps and pcento are two loop-stop criterion, 0.1 (its unit is %, 0.1 means a relative change of 1/1000) is a good choice",
         default={
             "name": "SCE_UA",
-            "random_seed": 1234,
-            # these params are just for test
-            "rep": 10,
+            "random_seed": 1000,
+            "rep": 800,
             "ngs": 10,
-            "kstop": 5,
+            "kstop": 3,
             "peps": 0.1,
             "pcento": 0.1,
         },
-        # default={
-        #     "name": "GA",
-        #     "random_seed": 1234,
-        #     "run_counts": 2,
-        #     "pop_num": 50,
-        #     "cross_prob": 0.5,
-        #     "mut_prob": 0.5,
-        #     "save_freq": 1,
-        # },
         type=json.loads,
     )
     parser.add_argument(
@@ -227,6 +205,13 @@ if __name__ == "__main__":
             "obj_func": "RMSE",
             "events": None,
         },
+        type=json.loads,
+    )
+    parser.add_argument(
+        "--subbasin",
+        dest="subbasin",
+        help="--subbasin true，采用带马斯京根的分布式xaj模型，需要：area2(km2), node1_flow(m^3/s)",
+        default=True,  # 集总新安江模型None，马斯京根模型True。cmd运行时，参数分别为null, true
         type=json.loads,
     )
     the_args = parser.parse_args()

@@ -1,6 +1,6 @@
-PRCP_NAME = "prcp(mm/day)"
-PET_NAME = "pet(mm/day)"
-ET_NAME = "et(mm/day)"
+PRCP_NAME = "prcp(mm/h)"
+PET_NAME = "pet(mm/h)"
+ET_NAME = "et(mm/h)"
 FLOW_NAME = "flow(m^3/s)"
 NODE_FLOW_NAME = "node1_flow(m^3/s)"
 AREA_NAME = "area(km^2)"
@@ -15,7 +15,7 @@ POSSIBLE_TIME_FORMATS = [
 ]
 ID_NAME = "id"
 NAME_NAME = "name"
-LEN_NAME = "len(km)"  # WLF
+
 
 def remove_unit_from_name(name_with_unit):
     """

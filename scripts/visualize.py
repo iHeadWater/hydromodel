@@ -12,7 +12,10 @@ import argparse
 import sys
 import os
 from pathlib import Path
-
+import logging
+import warnings
+logging.basicConfig(level=logging.WARNING)
+warnings.filterwarnings("ignore")
 repo_dir = os.path.dirname(Path(os.path.abspath(__file__)).parent)
 sys.path.append(repo_dir)
 from hydromodel.datasets.data_visualize import plot_sim_and_obs

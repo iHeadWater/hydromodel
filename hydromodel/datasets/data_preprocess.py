@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-10-25 21:16:22
-LastEditTime: 2024-03-27 18:17:14
+LastEditTime: 2024-05-20 20:08:10
 LastEditors: Wenyu Ouyang
 Description: preprocess data for models in hydro-model-xaj
-FilePath: \hydro-model-xaj\hydromodel\datasets\data_preprocess.py
+FilePath: \hydromodel\hydromodel\datasets\data_preprocess.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -412,19 +412,19 @@ def get_basin_area(data_type, data_dir, basin_ids) -> xr.Dataset:
     """
     area_name = remove_unit_from_name(AREA_NAME)
     if data_type == "camels":
-        camels_data_dir = os.path.join(SETTING["local_data_path"]["datasets-origin"], "camels", data_dir)
+        camels_data_dir = os.path.join(
+            SETTING["local_data_path"]["datasets-origin"], "camels", data_dir
+        )
         camels = Camels(camels_data_dir)
         basin_area = camels.read_area(basin_ids)
     elif data_type == "owndata":
         attr_data = xr.open_dataset(os.path.join(data_dir, "attributes.nc"))
-        basin_area = attr_data[[area_name]].rename({"id": "basin"})
-    elif data_type == "owndata-musk":
-        attr_data = xr.open_dataset(os.path.join(data_dir, "attributes.nc"))
+        # to guarantee the column name is same as the column name in the time series data
         basin_area = attr_data[[area_name]].rename({"id": "basin"})
     return basin_area
 
 
-def get_ts_from_diffsource(data_type, data_dir, periods, basin_ids):
+def get_ts_from_diffsource(data_type, data_dir, periods, basin_ids, subbasin=None):
     """Get time series data from different sources and unify the format and unit of streamflow.
 
     Parameters
@@ -451,7 +451,6 @@ def get_ts_from_diffsource(data_type, data_dir, periods, basin_ids):
     prcp_name = remove_unit_from_name(PRCP_NAME)
     pet_name = remove_unit_from_name(PET_NAME)
     flow_name = remove_unit_from_name(FLOW_NAME)
-    nodeflow_name = remove_unit_from_name(NODE_FLOW_NAME)  # WLF
     basin_area = get_basin_area(data_type, data_dir, basin_ids)
     if data_type == "camels":
         camels_data_dir = os.path.join(
@@ -461,7 +460,7 @@ def get_ts_from_diffsource(data_type, data_dir, periods, basin_ids):
         ts_data = camels.read_ts_xrdataset(
             basin_ids, periods, ["prcp", "PET", "streamflow"]
         )
-        # trans unit to mm/day
+        # trans unit to mm/time_interval
         qobs_ = ts_data[["streamflow"]]
         target_unit = ts_data["prcp"].attrs.get("units", "unknown")
         r_mmd = streamflow_unit_conv(qobs_, basin_area, target_unit=target_unit)
@@ -476,18 +475,11 @@ def get_ts_from_diffsource(data_type, data_dir, periods, basin_ids):
         r_mmd = streamflow_unit_conv(qobs_, basin_area, target_unit=target_unit)
         ts_data[flow_name] = r_mmd[flow_name]
         ts_data[flow_name].attrs["units"] = target_unit
-        ts_data = ts_data.sel(time=slice(periods[0], periods[1]))
-    elif data_type == "owndata-musk":  # WLF
-        ts_data = xr.open_dataset(os.path.join(data_dir, "timeseries.nc"))
-        target_unit = ts_data[prcp_name].attrs.get("units", "unknown")
-        qobs_ = ts_data[[flow_name]]
-        r_mmd = streamflow_unit_conv(qobs_, basin_area, target_unit=target_unit)
-        ts_data[flow_name] = r_mmd[flow_name]
-        ts_data[flow_name].attrs["units"] = target_unit
-        qin_ = ts_data[[nodeflow_name]]
-        r_mmd = streamflow_unit_conv(qin_, basin_area, target_unit=target_unit)
-        ts_data[nodeflow_name] = r_mmd[nodeflow_name]
-        ts_data[nodeflow_name].attrs["units"] = target_unit
+        if subbasin == True:
+            qin_ = ts_data[['node1_flow']]
+            r_mmd = streamflow_unit_conv(qin_, basin_area, target_unit=target_unit)
+            ts_data['node1_flow'] = r_mmd['node1_flow']
+            ts_data['node1_flow'].attrs["units"] = target_unit
         ts_data = ts_data.sel(time=slice(periods[0], periods[1]))
     else:
         raise NotImplementedError(
@@ -497,7 +489,7 @@ def get_ts_from_diffsource(data_type, data_dir, periods, basin_ids):
     return ts_data
 
 
-def _get_pe_q_from_ts(ts_xr_dataset, data_type=None):
+def _get_pe_q_from_ts(ts_xr_dataset, subbasin=None):
     """Transform the time series data to the format that can be used in the calibration process
 
     Parameters
@@ -513,20 +505,21 @@ def _get_pe_q_from_ts(ts_xr_dataset, data_type=None):
     prcp_name = remove_unit_from_name(PRCP_NAME)
     pet_name = remove_unit_from_name(PET_NAME)
     flow_name = remove_unit_from_name(FLOW_NAME)
-    p_and_e = (ts_xr_dataset[[prcp_name, pet_name]].to_array().to_numpy().transpose(2, 1, 0))
+    p_and_e = (
+        ts_xr_dataset[[prcp_name, pet_name]].to_array().to_numpy().transpose(2, 1, 0)
+    )
     qobs = np.expand_dims(ts_xr_dataset[flow_name].to_numpy().transpose(1, 0), axis=2)
-    if data_type == 'owndata-musk':  # WLF
-        nodeflow_name = remove_unit_from_name(NODE_FLOW_NAME)
-        qin = np.expand_dims(ts_xr_dataset[nodeflow_name].to_numpy().transpose(1, 0), axis=2)
+    if subbasin == True:
+        qin = np.expand_dims(ts_xr_dataset['node1_flow'].to_numpy().transpose(1, 0), axis=2)
         return p_and_e, qin, qobs
     else:
         return p_and_e, qobs
 
 
 def cross_val_split_tsdata(
-    data_type, data_dir, cv_fold, train_period, test_period, periods, warmup, basin_ids
+    data_type, data_dir, cv_fold, train_period, test_period, periods, warmup, basin_ids, subbasin
 ):
-    ts_data = get_ts_from_diffsource(data_type, data_dir, periods, basin_ids)
+    ts_data = get_ts_from_diffsource(data_type, data_dir, periods, basin_ids, subbasin)
     if cv_fold <= 1:
         # no cross validation
         periods = np.sort(
@@ -541,19 +534,36 @@ def cross_val_split_tsdata(
 
 def get_rr_events(rain, flow, basin_area):
     ureg = UnitRegistry()
-    # trans unit to mm/day
+    # trans unit to mm/time_interval
     flow_threshold = streamflow_unit_conv(
         np.array([100]) * ureg.m**3 / ureg.s,
         basin_area.isel(basin=0).to_array().to_numpy() * ureg.km**2,
-        target_unit="mm/h",
+        target_unit=flow.units,
     )
+    # 正则表达式匹配 mm/xh 和 mm/xd 格式
+    match = re.match(r"mm/(\d+)(h|d)", flow.units)
+
+    if match:
+        num, unit = match.groups()
+        num = int(num)
+        if unit == "h":
+            multiple = num
+        elif unit == "d":
+            multiple = num * 24
+        else:
+            raise ValueError(f"Unsupported unit: {unit}")
+    else:
+        raise ValueError(f"Invalid unit format: {flow.units}")
+
+    print(f"flow.units = { flow.units}, multiple = {multiple}")
     rr_events = {}
     for basin in basin_area.basin.values:
         rr_event = rainfall_runoff_event_identify(
             rain.sel(basin=basin).to_series(),
             flow.sel(basin=basin).to_series(),
-            multiple=1,
+            multiple=multiple,
             flow_threshold=flow_threshold[0],
+            rain_min=0.02 * multiple,
         )
         rr_events[basin] = rr_event
     return rr_events
