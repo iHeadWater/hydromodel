@@ -7,7 +7,7 @@ from hydromodel.datasets import CODE_NAME, STTYPE_NAME
 
 def read_data_from_topo(node_df: gpd.GeoDataFrame, sta_indexes):
     stcds = node_df.loc[sta_indexes, CODE_NAME].values
-    sql_engine = sqa.create_engine('postgresql+psycopg2://student:student@10.55.0.102:5432/water')
+    sql_engine = sqa.create_engine('postgresql://postgres:water@10.55.0.102:5432/water')
     number_dict = {}
     for stcd in stcds:
         ind = node_df[node_df[CODE_NAME] == stcd].index[0]

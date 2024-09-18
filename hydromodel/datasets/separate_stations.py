@@ -9,9 +9,11 @@ from hydromodel.datasets import STTYPE_NAME, CODE_NAME
 from hydromodel.datasets.read_data_from_topo import read_data_from_topo
 
 
-def organize_stations_df(stations, basin):
-    nearest_gdf = separate_stations(stations, basin)
-    for poly_id in np.unique(nearest_gdf['index_right'].to_numpy()):
+def organize_stations_df(era5l_ds_path, stations, basin):
+    nearest_gdf, centroids = separate_stations(stations, basin)
+    center_dict = {}
+    centers = np.unique(nearest_gdf['index_right'].to_numpy())
+    for poly_id in centers:
         sta_ids = nearest_gdf.index[nearest_gdf['index_right'] == poly_id].to_numpy()
         # sta_types = stations[stations[CODE_NAME].isin(sta_ids)][STTYPE_NAME].to_numpy()
         if len(sta_ids) >= 2:
@@ -20,27 +22,52 @@ def organize_stations_df(stations, basin):
             tm_min = np.min(dfs[0]['tm'])
             tm_max = np.max(dfs[0]['tm'])
             for df in dfs:
-                tm_min = np.min(tm_min, np.min(df['tm']))
-                tm_max = np.max(tm_max, np.max(df['tm']))
+                if len(df)>0:
+                    if np.min(df['tm']) > pd.to_datetime('2000-01-01'):
+                        tm_min = np.min([tm_min, np.min(df['tm'])])
+                        tm_max = np.max([tm_max, np.max(df['tm'])])
             pp_comp_df, rr_comp_df = organize_rain_and_flow(dfs)
-            pp_comp_df = pp_comp_df.set_index('tm')
+            # pp_comp_df = pp_comp_df.set_index('tm')
+            pp_comp_df = pp_comp_df[~pp_comp_df.index.duplicated()]
+            rr_comp_df = rr_comp_df[~rr_comp_df.index.duplicated()]
             pp_comp_df = pp_comp_df.resample('1h', origin='epoch').interpolate()[tm_min: tm_max]
-            rr_comp_df = rr_comp_df.resample('1h', origin='epoch').interpolate()[tm_min: tm_max]
+            try:
+                rr_comp_df = rr_comp_df.resample('1h', origin='epoch').interpolate()[tm_min: tm_max]
+            except TypeError:
+                # 存在实际没有流量的废站
+                rr_comp_df = pd.DataFrame()
             pr_comp_df = pd.concat([pp_comp_df, rr_comp_df], axis=1)
+            # 由于含有蒸散发的文件已经是根据流域编号拆分的结果，所以不需要再指定basin_id
+            pev_df = pd.DataFrame({'pet': read_pev_from_era5(era5l_ds_path, tm_min, tm_max)})
+            comp_df = pd.concat([pr_comp_df, pev_df], axis=1)
+            center_dict[poly_id] = comp_df
+        else:
+            center_dict[poly_id] = None
+    return center_dict, centroids
 
-def read_pev_from_era5():
-    # 使用ftproot里的数据集
-    era5l_ds = xr.open_dataset("/ftproot/632_basins_era5land_fixed.nc")
+
+def read_pev_from_era5(era5l_ds_path, time_min, time_max):
+    # 使用ftproot里的数据集, 时间最晚到2024.6.9 19:00
+    era5l_ds = xr.open_dataset(era5l_ds_path)
+    evapo = era5l_ds['total_evaporation_hourly'].sel(time_start=slice(time_min, time_max))
+    return evapo.to_numpy()
+
 
 def organize_rain_and_flow(dfs):
     # dfs is list of GeoDataFrame
     # tm_min = np.min(dfs[0]['tm'])
     # tm_max = np.max(dfs[0]['tm'])
-    pp_comp_df = pd.concat([df for df in dfs if 'drp' in df.columns])
-    pp_comp_df = pp_comp_df.groupby(level=0).agg({'drp': 'mean'})
-    river_comp_df = pd.concat([df for df in dfs if ('q' in df.columns)])
-    rsvr_comp_df = pd.concat([df for df in dfs if ('inq' in df.columns)])
-    rsvr_comp_df = rsvr_comp_df.rename(columns={'inq': 'q'})
+    pp_comp_df = pd.concat([df.set_index('tm') for df in dfs if 'drp' in df.columns])
+    pp_comp_df['drp'] = pp_comp_df['drp'].groupby(level=0).mean()
+    try:
+        river_comp_df = pd.concat([df.set_index('tm') for df in dfs if ('q' in df.columns)])
+    except ValueError:
+        river_comp_df = pd.DataFrame()
+    try:
+        rsvr_comp_df = pd.concat([df.set_index('tm') for df in dfs if ('inq' in df.columns)])
+        rsvr_comp_df = rsvr_comp_df.rename(columns={'inq': 'q'})
+    except ValueError:
+        rsvr_comp_df = pd.DataFrame()
     rr_comp_df = pd.concat([river_comp_df, rsvr_comp_df]).groupby(level=0).agg({'q': 'mean'})
     return pp_comp_df, rr_comp_df
 
@@ -55,7 +82,8 @@ def separate_stations(stations, basin):
     else:
         polygons = calculate_voronoi_polygons(stations_npp, basin)
     nearest_gdf = gpd.sjoin_nearest(stations, polygons, how="left")
-    return nearest_gdf
+    centroids = polygons.geometry.centroid.to_list()
+    return nearest_gdf, centroids
 
 
 # Copied from hydrodatasource/cleaner/rainfall_cleaner.py
