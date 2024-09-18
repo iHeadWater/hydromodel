@@ -1,16 +1,16 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-10-25 21:16:22
-LastEditTime: 2024-05-19 11:57:19
+LastEditTime: 2024-09-17 14:30:58
 LastEditors: Wenyu Ouyang
 Description: Test for results visualization
 FilePath: \hydromodel\test\test_data_visualize.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
+import spotpy
 import matplotlib.pyplot as plt
 import spotpy
-from spotpy.examples.spot_setup_hymod_python import spot_setup as hymod_setup
 
 from hydroutils import hydro_time
 
@@ -20,19 +20,7 @@ from hydromodel.trainers.calibrate_sceua import calibrate_by_sceua
 from hydromodel.trainers.evaluate import _read_save_sceua_calibrated_params
 
 
-def test_run_hymod_calibration():
-    # a case from spotpy example
-    setup = hymod_setup(spotpy.objectivefunctions.rmse)
-
-    # 创建SCE-UA算法的sampler
-    sampler = spotpy.algorithms.sceua(setup, dbname="test/SCEUA_hymod", dbformat="csv")
-
-    # 设置校准参数
-    repetitions = 5000  # 最大迭代次数
-
-    # 运行sampler
-    sampler.sample(repetitions, ngs=7, kstop=3, peps=0.1, pcento=0.1)
-
+def test_run_hymod_calibration(hymod_setup):
     # 从CSV文件加载结果
     results = spotpy.analyser.load_csv_results("test/SCEUA_hymod")
 
@@ -56,9 +44,9 @@ def test_run_hymod_calibration():
         best_simulation,
         color="black",
         linestyle="solid",
-        label="Best objf.=" + str(bestobjf),
+        label=f"Best objf.={str(bestobjf)}",
     )
-    plt.plot(setup.evaluation(), "r.", markersize=3, label="Observation data")
+    plt.plot(hymod_setup.evaluation(), "r.", markersize=3, label="Observation data")
     plt.xlabel("Number of Observation Points")
     plt.ylabel("Discharge [l s-1]")
     plt.legend(loc="upper right")
@@ -75,7 +63,8 @@ def test_show_calibrate_sceua_result(p_and_e, qobs, warmup_length, db_name, basi
             "name": "xaj_mz",
             "source_type": "sources",
             "source_book": "HF",
-            "time_interval_hours": 1,
+            "kernel_size": 15,
+            "time_interval_hours": 24,
         },
         algorithm={
             "name": "SCE_UA",
