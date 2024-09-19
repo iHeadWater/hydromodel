@@ -38,7 +38,7 @@ def organize_stations_df(era5l_ds_path, stations, basin):
                 rr_comp_df = pd.DataFrame()
             pr_comp_df = pd.concat([pp_comp_df, rr_comp_df], axis=1)
             # 由于含有蒸散发的文件已经是根据流域编号拆分的结果，所以不需要再指定basin_id
-            pev_df = pd.DataFrame({'pet': read_pev_from_era5(era5l_ds_path, tm_min, tm_max)})
+            pev_df = read_pev_from_era5(era5l_ds_path, tm_min, tm_max)
             comp_df = pd.concat([pr_comp_df, pev_df], axis=1)
             center_dict[poly_id] = comp_df
         else:
@@ -50,7 +50,8 @@ def read_pev_from_era5(era5l_ds_path, time_min, time_max):
     # 使用ftproot里的数据集, 时间最晚到2024.6.9 19:00
     era5l_ds = xr.open_dataset(era5l_ds_path)
     evapo = era5l_ds['total_evaporation_hourly'].sel(time_start=slice(time_min, time_max))
-    return evapo.to_numpy()
+    evapo_df = evapo.to_dataframe().drop(columns=['basin_id']).rename(columns={'total_evaporation_hourly': 'pet'})
+    return evapo_df
 
 
 def organize_rain_and_flow(dfs):

@@ -17,7 +17,7 @@ ET_NAME = "et(mm/day)"
 FLOW_NAME = "flow(m^3/s)"
 NODE_FLOW_NAME = "node1_flow(m^3/s)"
 AREA_NAME = "area(km^2)"
-TIME_NAME = "tm"
+TIME_NAME = "time"
 POSSIBLE_TIME_FORMATS = [
     "%Y-%m-%d %H:%M:%S",  # 完整的日期和时间
     "%Y-%m-%d",  # 只有日期
