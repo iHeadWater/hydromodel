@@ -26,6 +26,7 @@ from hydromodel.datasets.data_preprocess_topo import (
 )
 from hydromodel.models.model_config import read_model_param_dict
 from hydromodel.models.model_dict import MODEL_DICT
+from hydromodel.models.xaj import xaj
 
 
 class Evaluator:
@@ -75,7 +76,6 @@ class Evaluator:
         p_and_e, _ = _get_pe_q_from_ts(ds)
         basins = ds["basin"].data.astype(str)
         params = _read_all_basin_params(basins[calibrate_id], self.params_dir)
-        print(params,'wwwwwwwwwwwwwwwww')
         print(params[0,:])
         params=params[0,:]
         qsim = MODEL_DICT[model_info["name"]](
@@ -91,7 +91,25 @@ class Evaluator:
             **model_info,
             #**{"param_range_file": self.param_range_file},
         )
-        qsim, qobs = self._convert_streamflow_units(ds, qsim)
+        print(qsim.shape)
+        # Convert to xarray.Dataset
+        time_coords = ds["time"].values
+        basin_coords = ds["basin"].values
+
+        # Assuming qsim_array is (17024, 2, 1), we need to squeeze it to (17024, 2)
+        qsim_squeezed = np.squeeze(qsim)  # Removes dimensions of size 1
+
+        # Create an xarray Dataset
+        qsim = xr.Dataset(
+            {
+                'flow': (['time', 'basin'], qsim_squeezed)
+            },
+            coords={
+                'time': time_coords,
+                'basin': basin_coords
+            }
+        )
+        _, qobs = self._convert_streamflow_units(ds, qsim)
         return qsim, qobs
 
     def save_results(self, ds, qsim, qobs, calibrate_id):
@@ -165,7 +183,7 @@ class Evaluator:
         )
         params_df = pd.DataFrame(params_txt.values.T)
         params.append(params_df)
-        
+
         params_dfs = pd.concat(params, axis=0)
         print("ccc",params_dfs,'',params_dfs.index)
         #params_dfs.index = [basin_ids[calibrate_id]]
