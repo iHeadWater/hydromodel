@@ -100,7 +100,7 @@ class Evaluator:
         qsim_squeezed = np.squeeze(qsim)  # Removes dimensions of size 1
 
         # Create an xarray Dataset
-        qsim = xr.Dataset(
+        q_sim = xr.Dataset(
             {
                 'flow': (['time', 'basin'], qsim_squeezed)
             },
@@ -110,7 +110,7 @@ class Evaluator:
             }
         )
         _, qobs = self._convert_streamflow_units(ds, qsim)
-        return qsim, qobs
+        return q_sim, qobs
 
     def save_results(self, ds, qsim, qobs, calibrate_id):
         print("save_results11111111111111111111111111111")
