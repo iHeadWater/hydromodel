@@ -160,7 +160,7 @@ if __name__ == "__main__":
         "--basin_id",
         dest="basin_id",
         help="The basins' ids",
-        default=["1",'2','3'],
+        default=["0",'1','2'],
         nargs="+",
     )
 
@@ -168,7 +168,7 @@ if __name__ == "__main__":
         "--calibrate_id",
         dest="calibrate_id",
         help="The calibrate_id",
-        default=2,
+        default=1,
         nargs="+",
     )
 

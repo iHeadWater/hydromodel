@@ -37,9 +37,9 @@ def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, to
     for i in range(len(modelwithsameParas)):
         modelIdSet=modelwithsameParas[i]['MODELIDSET']
         for j in range(len(modelIdSet)):
-            params_range[modelIdSet[j]-1]['PARAMETER'] = modelwithsameParas[i]['PARAMETER']
-            params_range[modelIdSet[j]-1]['UP'] = modelwithsameParas[i]['UP']
-            params_range[modelIdSet[j]-1]['DOWN'] = modelwithsameParas[i]['DOWN']
+            params_range[modelIdSet[j]]['PARAMETER'] = modelwithsameParas[i]['PARAMETER']
+            params_range[modelIdSet[j]]['UP'] = modelwithsameParas[i]['UP']
+            params_range[modelIdSet[j]]['DOWN'] = modelwithsameParas[i]['DOWN']
 
     lineN0=0
     for calid in topo:
@@ -51,13 +51,13 @@ def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, to
         for i in range(len(numbers)):
             start, end = numbers[i], numbers[0]
             modelid = [model["MODELID"] for model in params_range if model["START"] == start and model["END"] == end]
-            modelname = params_range[modelid[0]-1]['MODELNAME']
+            modelname = params_range[modelid[0]]['MODELNAME']
 
             if modelname == 'XAJ':
                 print(f'Running XAJ')
-                parameter = np.array(params_range[modelid[0]-1]['PARAMETER'])
-                parameterup = np.array(params_range[modelid[0]-1]['UP'])
-                parameterdown = np.array(params_range[modelid[0]-1]['DOWN'])
+                parameter = np.array(params_range[modelid[0]]['PARAMETER'])
+                parameterup = np.array(params_range[modelid[0]]['UP'])
+                parameterdown = np.array(params_range[modelid[0]]['DOWN'])
                 parameter_xaj = (parameterup - parameterdown) * parameter + parameterdown
                 parameter_xaj = parameter_xaj.reshape(-1, 1)
                 print(attributes,'wwwwwwwwwwwwwwww')
