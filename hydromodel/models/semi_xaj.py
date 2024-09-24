@@ -56,9 +56,9 @@ def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, to
             if modelname == 'XAJ':
                 print(f'Running XAJ')
                 parameter = np.array(params_range[modelid[0]]['PARAMETER'])
-                parameterup = np.array(params_range[modelid[0]]['UP'])
-                parameterdown = np.array(params_range[modelid[0]]['DOWN'])
-                parameter_xaj = (parameterup - parameterdown) * parameter + parameterdown
+                parameter_up = np.array(params_range[modelid[0]]['UP'])
+                parameter_down = np.array(params_range[modelid[0]]['DOWN'])
+                parameter_xaj = (parameter_up - parameter_down) * parameter + parameter_down
                 parameter_xaj = parameter_xaj.reshape(-1, 1)
                 print(attributes,'wwwwwwwwwwwwwwww')
                 area = attributes.sel(id=str(numbers[0]))['area'].values

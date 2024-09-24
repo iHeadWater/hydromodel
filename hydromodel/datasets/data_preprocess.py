@@ -17,11 +17,10 @@ from pint import UnitRegistry
 from sklearn.model_selection import KFold
 import xarray as xr
 
-from hydrodataset import Camels
 from hydrodatasource.utils.utils import streamflow_unit_conv
 from hydrodatasource.cleaner.dmca_esr import rainfall_runoff_event_identify
 
-from hydromodel import CACHE_DIR, SETTING
+from hydromodel import CACHE_DIR
 from hydromodel.datasets import *
 
 
@@ -514,7 +513,6 @@ def _get_pe_q_from_ts(ts_xr_dataset):
         ts_xr_dataset[[prcp_name, pet_name]].to_array().to_numpy().transpose(2, 1, 0)
     )
     qobs = np.expand_dims(ts_xr_dataset[flow_name].to_numpy().transpose(1, 0), axis=2)
-
     return p_and_e, qobs
 
 

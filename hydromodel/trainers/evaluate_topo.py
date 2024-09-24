@@ -150,6 +150,7 @@ class Evaluator:
         ds_simflow = streamflow_unit_conv(
             ds, basin_area, target_unit=target_unit, inverse=True
         )
+        # 如果流量值缺失就采用汇流结果
         ds_obsflow = streamflow_unit_conv(
             test_data[[flow_name]], basin_area, target_unit=target_unit, inverse=True
         )

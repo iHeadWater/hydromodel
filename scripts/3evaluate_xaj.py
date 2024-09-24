@@ -25,6 +25,7 @@ from hydromodel.trainers.evaluate_topo import Evaluator, read_yaml_config
 
 def evaluate(args):
     exp = args.exp
+    replace = args.replace_lost_obs
     cali_dir = Path(os.path.join(repo_path, "result", exp))
     cali_config = read_yaml_config(os.path.join(cali_dir, "config.yaml"))
     kfold = cali_config["cv_fold"]
@@ -36,7 +37,7 @@ def evaluate(args):
     test_period = cali_config["test_period"]
     periods = cali_config["period"]
     calibrate_id=cali_config["calibrate_id"]
-
+    # 时间间隔：3h
     dt=3
     attributes = xr.open_dataset(f'{data_dir}/attributes.nc')  # 读取流域属性数据
     with open(f'{data_dir}/topo.txt', 'r') as f:
@@ -62,7 +63,7 @@ def evaluate(args):
         train_data = train_and_test_data[0]
         test_data = train_and_test_data[1]
         param_dir = os.path.join(cali_dir, "sceua_xaj")
-        _evaluate(cali_dir, param_dir, train_data, test_data,calibrate_id,attributes,modelwithsameParas,params_range,topo,dt)
+        _evaluate(cali_dir, param_dir, train_data, test_data,calibrate_id,attributes,modelwithsameParas,params_range,topo,dt, replace)
         print("Finish evaluating")
     else:
         for fold in range(kfold):
@@ -71,17 +72,20 @@ def evaluate(args):
             # evaluate both train and test period for all basins
             train_data = train_and_test_data[fold][0]
             test_data = train_and_test_data[fold][1]
-            _evaluate(cali_dir, fold_dir, train_data, test_data,calibrate_id,attributes,modelwithsameParas,params_range,topo,dt)
+            _evaluate(cali_dir, fold_dir, train_data, test_data,calibrate_id,attributes,modelwithsameParas,params_range,topo,dt, replace)
             print(f"Finish evaluating the {fold}-th fold")
 
 
-def _evaluate(cali_dir, param_dir, train_data, test_data,calibrate_id,attributes,modelwithsameParas,params_range,topo,dt):
+def _evaluate(cali_dir, param_dir, train_data, test_data,calibrate_id,attributes,modelwithsameParas,params_range,topo,dt, replace=False):
     eval_train_dir = os.path.join(param_dir, "train")
     eval_test_dir = os.path.join(param_dir, "test")
     train_eval = Evaluator(cali_dir, param_dir, eval_train_dir)
     test_eval = Evaluator(cali_dir, param_dir, eval_test_dir)
     qsim_train, qobs_train = train_eval.predict(train_data,calibrate_id,attributes,modelwithsameParas,params_range,topo,dt)
     qsim_test, qobs_test = test_eval.predict(test_data,calibrate_id,attributes,modelwithsameParas,params_range,topo,dt)
+    if replace:
+        qobs_train = qobs_train.where(~qobs_train.isnull(), qsim_train)
+        qobs_test = qobs_test.where(~qobs_test.isnull(), qsim_test)
     train_eval.save_results(
         train_data,
         qsim_train,
@@ -106,6 +110,13 @@ if __name__ == "__main__":
         help="An exp is corresponding to a data plan from calibrate_xaj.py",
         default="yanwangbizi01",
         type=str,
+    )
+    parser.add_argument(
+        "--replace_lost_obs",
+        dest="replace_lost_obs",
+        help="replace obs where is nan with simulated flow",
+        default=False,
+        type=bool,
     )
     the_args = parser.parse_args()
     evaluate(the_args)

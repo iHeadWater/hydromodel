@@ -12,7 +12,7 @@ from hydrodataset import Camels
 from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 
 PRCP_NAME = "prcp(mm/day)"
-PET_NAME = "pet(mm/day)"
+PET_NAME = "pet(mm/3h)"
 ET_NAME = "et(mm/day)"
 FLOW_NAME = "flow(m^3/s)"
 NODE_FLOW_NAME = "node1_flow(m^3/s)"
