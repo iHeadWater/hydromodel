@@ -4,7 +4,6 @@ import numpy as np
 import spotpy
 import pandas as pd
 from spotpy.parameter import Uniform, ParameterSet
-from hydromodel.models.model_config import read_model_param_dict
 from hydromodel.models.model_dict import LOSS_DICT, MODEL_DICT
 
 
@@ -30,7 +29,7 @@ class SpotSetup(object):
     def parameters(self):
         # print(f'参数：{spotpy.parameter.generate(self.para_seq)}')
         return spotpy.parameter.generate(self.para_seq)
-    
+
 
     def simulation(self, x: ParameterSet) -> Union[list, np.array]:
         # parameter, 2-dim variable: [basin=1, parameter]
@@ -38,7 +37,7 @@ class SpotSetup(object):
         calibrate_id=self.calibrate_id
         sim = MODEL_DICT[self.model["name"]](
             self.p_and_e,
-            self.attributes, self.modelwithsameParas, param_seq, self.params_range, self.topo, self.dt,
+            self.attributes, self.modelwithsameParas, param_seq, self.params_range, self.topo, self.dt, self.true_obs,
             warmup_length=self.warmup_length,
             **self.model,
         )

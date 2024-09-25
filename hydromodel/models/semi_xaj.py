@@ -20,10 +20,11 @@ logging.basicConfig(level=logging.WARNING)
 
 
 
-def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, topo, dt, **kwargs):
+def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, topo, dt, qobs, **kwargs):
     model_name = kwargs.get("name", "xaj")
     source_type = kwargs.get("source_type", "sources")
     source_book = kwargs.get("source_book", "HF")
+    model_state = kwargs.get("state")
     qsim_collect = np.zeros((len(p_and_e),len(topo),1))
     print(para_seq.shape, '------------------------------------')
 
@@ -72,14 +73,20 @@ def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, to
                     time_interval_hours=dt,
                 )
                 qsim = qsim.squeeze() * area / (3600*dt*1000/1000000)
-                qsim_collect[:,numbers[0]-1,0] += qsim
+                qsim_collect[:,numbers[0],0] += qsim
                 print(f'node:{start}-{end}\tmodel:{modelname}\tarea:{area}\tparameter:{parameter_xaj.squeeze()}')
 
             elif modelname=='MUSK':
                 print(f'Running MUSK')
-                parameter = np.array(params_range[modelid[0]-1]['PARAMETER'])
-                inflows = qsim_collect[:,start-1,0]
-                outflows = Musk(inflows, parameter[0], parameter[1], dt=dt)
-                qsim_collect[:,end-1,0] += outflows
+                parameter = np.array(params_range[modelid[0]]['PARAMETER'])
+                if model_state == 'evaluate':
+                    inflows = np.where(np.isnan(qobs[:,start, 0]), qsim_collect[:,start, 0], qobs[:,start, 0])
+                    outflows = Musk(inflows, parameter[0], parameter[1], dt=dt)
+                    outflows_obs = np.where(np.isnan(qobs[:, end, 0]), outflows, qobs[:,start, 0])
+                    qsim_collect[:,end,0] += outflows_obs
+                else:
+                    inflows = qsim_collect[:,start,0]
+                    outflows = Musk(inflows, parameter[0], parameter[1], dt=dt)
+                    qsim_collect[:,end,0] += outflows
     return qsim_collect
 

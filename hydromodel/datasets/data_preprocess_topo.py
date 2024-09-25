@@ -201,7 +201,7 @@ def process_and_save_data_as_nc(
     nc_attrs_file="attributes.nc",
     nc_ts_file="timeseries.nc",
     # source='local'  # source有两种：local和sql(待开发)
-    total_basin_dataset=None,
+    replace_pet=False
 ):
     # import geopandas as gpd
     # 验证文件夹内容
@@ -248,8 +248,11 @@ def process_and_save_data_as_nc(
         file_name = f"basin_{basin_id}.csv"
         file_path = os.path.join(folder_path, file_name)
         data = pd.read_csv(file_path)
-        if (data[PET_NAME].isnull().all()) & (total_basin_dataset is not None):
-            data[PET_NAME] = total_basin_dataset[PET_NAME].to_numpy()
+        if (data[PET_NAME].isnull().all()) & replace_pet:
+            last_file_name = f"basin_{basin_ids[-1]}.csv"
+            last_file_path = os.path.join(folder_path, last_file_name)
+            last_data = pd.read_csv(last_file_path, engine='c')
+            data[PET_NAME] = last_data[PET_NAME].to_numpy()
         for time_format in POSSIBLE_TIME_FORMATS:
             try:
                 data[TIME_NAME] = pd.to_datetime(data[TIME_NAME], format=time_format)

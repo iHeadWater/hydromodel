@@ -59,7 +59,7 @@ class Evaluator:
         if not os.path.exists(eval_dir):
             os.makedirs(eval_dir)
 
-    def predict(self, ds,calibrate_id,attributes,modelwithsameParas,params_range,topo,dt):
+    def predict(self, ds, calibrate_id, attributes,modelwithsameParas,params_range,topo,dt):
         """predict the streamflow of all basins in ds
 
         Parameters
@@ -73,7 +73,8 @@ class Evaluator:
             qsim, qobs
         """
         model_info = self.model_info
-        p_and_e, _ = _get_pe_q_from_ts(ds)
+        # p_and_e & qobs are both ndarray, dim=[seq_length, basins, 1]
+        p_and_e, qobs = _get_pe_q_from_ts(ds)
         basins = ds["basin"].data.astype(str)
         params = _read_all_basin_params(basins[calibrate_id], self.params_dir)
         print(params[0,:])
@@ -88,6 +89,7 @@ class Evaluator:
             dt,
             # we set the warmup_length=0 but later we get results from warmup_length to the end to evaluate
             #warmup_length=0,
+            qobs,
             **model_info,
             #**{"param_range_file": self.param_range_file},
         )

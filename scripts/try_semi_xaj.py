@@ -10,7 +10,6 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 
 import json
 import argparse
-import shutil
 import sys
 import os
 from pathlib import Path
@@ -25,12 +24,11 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 repo_path = os.path.dirname(Path(os.path.abspath(__file__)).parent)
 sys.path.append(repo_path)
-from hydromodel.datasets import *
 from hydromodel.datasets.data_preprocess import (
     _get_pe_q_from_ts,
     cross_val_split_tsdata,
 )
-from hydromodel.trainers.calibrate_semi_xaj_sceua import calibrate_semi_xaj_sceua
+
 from hydromodel.models.semi_xaj import semi_xaj
 
 
@@ -74,14 +72,10 @@ def calibrate(args):
         warmup,
         basin_ids,
     )
-    
-
     p_and_e, qobs = _get_pe_q_from_ts(train_and_test_data[0])
     para_seq=np.random.rand(sum(len(item['PARAMETER']) for item in modelwithsameParas))
-    semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, topo, dt)
-
-
-   #shutil.copy(param_range_file, where_save)
+    semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, topo, dt, qobs)
+    #shutil.copy(param_range_file, where_save)
     #args.param_range_file = os.path.join(where_save, param_range_file.split(os.sep)[-1])
     args_dict = vars(args)
     with open(os.path.join(where_save, "config.yaml"), "w") as f:

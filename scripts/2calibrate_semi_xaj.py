@@ -10,12 +10,10 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 
 import json
 import argparse
-import shutil
 import sys
 import os
 from pathlib import Path
 import yaml
-import numpy as np
 import xarray as xr
 import logging  # 去除debug信息
 logging.basicConfig(level=logging.WARNING)
@@ -180,6 +178,7 @@ if __name__ == "__main__":
             "name": "semi_xaj",
             "source_type": "sources5mm",
             "source_book": "HF",
+            "state": "calibrate"
         },
         type=json.loads,
     )

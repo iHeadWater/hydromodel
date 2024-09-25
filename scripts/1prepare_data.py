@@ -24,6 +24,7 @@ from hydromodel.datasets.data_preprocess_topo import process_and_save_data_as_nc
 def main(args):
     data_path = args.origin_data_dir
     checks = args.check_topo_and_basins
+    replace_pet = args.replace_pet_with_subbasin
     # 校验拓扑点数量和子流域数量的代码
     logger.warning('雨量数据需要先行准备好！')
     if checks:
@@ -32,7 +33,7 @@ def main(args):
         node_gdf = gpd.read_file(node_path)
         sub_basin_gdf = gpd.read_file(sub_basin_path)
         assert len(node_gdf) == len(sub_basin_gdf)
-    if process_and_save_data_as_nc(data_path, save_folder=data_path):
+    if process_and_save_data_as_nc(data_path, save_folder=data_path, replace_pet=replace_pet):
         print("Data is ready!")
     else:
         print("Data format is incorrect! Please check the data.")
@@ -48,5 +49,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--check_topo_and_basins", type=bool,
                         help="Check amount of topological points and subbasins are equal or not", default=False)
+    parser.add_argument("--replace_pet_with_subbasin", type=bool,
+                        help="replace pet in data with other subbasin's pet", default=False)
     args = parser.parse_args()
     main(args)
