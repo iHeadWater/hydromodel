@@ -25,6 +25,7 @@ def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, to
     source_type = kwargs.get("source_type", "sources")
     source_book = kwargs.get("source_book", "HF")
     model_state = kwargs.get("state")
+    eval_replace = kwargs.get("eval_replace")
     qsim_collect = np.zeros((len(p_and_e),len(topo),1))
     print(para_seq.shape, '------------------------------------')
 
@@ -79,7 +80,7 @@ def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, to
             elif modelname=='MUSK':
                 print(f'Running MUSK')
                 parameter = np.array(params_range[modelid[0]]['PARAMETER'])
-                if model_state == 'evaluate':
+                if (model_state == 'evaluate') & eval_replace:
                     inflows = np.where(np.isnan(qobs[:,start, 0]), qsim_collect[:,start, 0], qobs[:,start, 0])
                     outflows = Musk(inflows, parameter[0], parameter[1], dt=dt)
                     outflows_obs = np.where(np.isnan(qobs[:, end, 0]), outflows, qobs[:,start, 0])

@@ -178,7 +178,8 @@ if __name__ == "__main__":
             "name": "semi_xaj",
             "source_type": "sources5mm",
             "source_book": "HF",
-            "state": "calibrate"
+            "state": "calibrate",
+            "eval_replace": False
         },
         type=json.loads,
     )

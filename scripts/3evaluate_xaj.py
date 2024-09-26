@@ -107,12 +107,5 @@ if __name__ == "__main__":
         default="yanwangbizi01",
         type=str,
     )
-    parser.add_argument(
-        "--replace_lost_obs",
-        dest="replace_lost_obs",
-        help="replace obs where is nan with simulated flow",
-        default=False,
-        type=bool,
-    )
     the_args = parser.parse_args()
     evaluate(the_args)
