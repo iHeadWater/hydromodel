@@ -30,6 +30,11 @@ def find_edge_nodes(gpd_nodes_df, gpd_network_df, station_indexes, cutoff: int =
     return station_dict
 
 def gen_topo_text_and_default_json(gpd_nodes_df, gpd_network_df, station_indexes, model_name='xaj'):
+    # gpd_node_df: gpd.GeoDataFrame，站点图层数据
+    # gpd_network_df: gpd.GeoDataFrame，用来确定拓扑关系的河网图层数据
+    # station_indexes: 要生成上下游关系的站点索引列表，【0，1，2……】
+    # 本测试中采取所有站点的索引
+    # model_name: 率定时所用的模型名，默认为xaj（新安江模型）
     import ujson
     station_dict = find_edge_nodes(gpd_nodes_df, gpd_network_df, station_indexes)
     riv_1lvl_list = []
