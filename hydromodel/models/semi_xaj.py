@@ -26,7 +26,8 @@ def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, to
     source_book = kwargs.get("source_book", "HF")
     model_state = kwargs.get("state")
     eval_replace = kwargs.get("eval_replace")
-    qsim_collect = np.zeros((len(p_and_e),len(topo),1))
+    warmup_length = kwargs.get("warmup_length")
+    qsim_collect = np.zeros((len(p_and_e) - warmup_length,len(topo),1))
     print(para_seq.shape, '------------------------------------')
 
     # 把长序列参数分配给各个ParaID
@@ -67,7 +68,7 @@ def semi_xaj(p_and_e, attributes, modelwithsameParas, para_seq, params_range, to
                 qsim, _ = params_dict_xaj(
                     p_and_e1,
                     params=parameter_xaj,
-                    warmup_length=0,
+                    warmup_length=warmup_length,
                     model_name=model_name,
                     source_type=source_type,
                     source_book=source_book,

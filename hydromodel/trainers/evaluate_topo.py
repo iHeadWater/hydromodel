@@ -54,6 +54,7 @@ class Evaluator:
         self.save_dir = eval_dir
         self.params_dir = param_dir
         self.param_range_file = cali_config["param_range_file"]
+        self.warmup_length = cali_config["warmup"]
         if not os.path.exists(param_dir):
             os.makedirs(param_dir)
         if not os.path.exists(eval_dir):
@@ -88,7 +89,7 @@ class Evaluator:
             topo,
             dt,
             # we set the warmup_length=0 but later we get results from warmup_length to the end to evaluate
-            #warmup_length=0,
+            self.warmup_length,
             qobs,
             **model_info,
             #**{"param_range_file": self.param_range_file},
@@ -107,7 +108,7 @@ class Evaluator:
                 'flow': (['time', 'basin'], qsim_squeezed)
             },
             coords={
-                'time': time_coords,
+                'time': time_coords[self.warmup_length:],
                 'basin': basin_coords
             }
         )
@@ -141,7 +142,7 @@ class Evaluator:
         flow_name = remove_unit_from_name(FLOW_NAME)
         flow_dataarray = xr.DataArray(
             qsim.squeeze(-1),
-            coords=[("time", times), ("basin", basins)],
+            coords=[("time", times[self.warmup_length:]), ("basin", basins)],
             name=flow_name,
         )
         flow_dataarray.attrs["units"] = test_data[flow_name].attrs["units"]

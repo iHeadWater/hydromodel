@@ -37,8 +37,19 @@ def rmse43darr(obs, sim):
     ValueError
         _description_
     """
-    rmses = np.sqrt(np.nanmean((sim - obs) ** 2, axis=0))
-    rmse = rmses.mean(axis=0)
+    # print('--------------------shape--------------------------')
+    # print(sim.shape)
+    sim_N = np.squeeze(sim)
+    obs_N = np.squeeze(obs)
+    # print(obs.shape)
+    # print(obs[0])
+    # rmses = np.sqrt(np.nanmean((sim - obs) ** 2, axis=0))
+    # rmse = rmses.mean(axis=0)
+    rmse = np.sqrt(np.nanmean((sim_N - obs_N) ** 2, axis=0))
+    np.savetxt("sim.txt", sim_N)
+    np.savetxt("obs.txt", obs_N)
+    print('--------------------rmse--------------------------')
+    print('rmse', rmse)
     if np.isnan(rmse) or any(np.isnan(sim)):
         raise ValueError(
             "RMSE is nan or there are nan values in the simulation data, please check the input data."

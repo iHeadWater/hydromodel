@@ -41,7 +41,7 @@ class SpotSetup(object):
             warmup_length=self.warmup_length,
             **self.model,
         )
-        area = self.attributes.sel(id=str(calibrate_id))['area'].values
+        area = self.attributes.sel(id=str(calibrate_id+1))['area'].values
 
         return sim[:,calibrate_id,:] / area * (3600*self.dt*1000/1000000)
 
