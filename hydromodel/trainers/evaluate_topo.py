@@ -74,6 +74,7 @@ class Evaluator:
             qsim, qobs
         """
         model_info = self.model_info
+        model_info['warmup_length'] = self.warmup_length
         # p_and_e & qobs are both ndarray, dim=[seq_length, basins, 1]
         p_and_e, qobs = _get_pe_q_from_ts(ds)
         basins = ds["basin"].data.astype(str)
@@ -89,7 +90,6 @@ class Evaluator:
             topo,
             dt,
             # we set the warmup_length=0 but later we get results from warmup_length to the end to evaluate
-            self.warmup_length,
             qobs,
             **model_info,
             #**{"param_range_file": self.param_range_file},
