@@ -39,11 +39,14 @@ def gen_topo_text_and_default_json(gpd_nodes_df, gpd_network_df, station_indexes
     station_dict = find_edge_nodes(gpd_nodes_df, gpd_network_df, station_indexes)
     riv_1lvl_list = []
     higher_list = []
-    for val in station_dict.values():
+    for k in station_dict.keys():
+        val = station_dict[k]
         if len(val) == 1:
             riv_1lvl_list.extend(val)
         else:
-            topo_path = np.unique(np.concatenate(val))
+            val_arr = np.unique(np.concatenate(val))
+            k_index = np.where(val_arr == k)[0][0]
+            topo_path = np.concatenate((val_arr[k_index:k_index+1], val_arr[:k_index], val_arr[k_index+1:]))
             higher_list.append(topo_path)
     default_params_list = []
     for sta_id in station_indexes:
@@ -79,7 +82,7 @@ def gen_topo_text_and_default_json(gpd_nodes_df, gpd_network_df, station_indexes
         model_with_same_paras_list.append(params_dict)
     musk_index = 0
     for hlist in higher_list:
-        for elem in hlist[1:]:
+        for _ in hlist[1:]:
             params_dict = {"ParaID": len(station_indexes) + musk_index, "MODELNAME": "MUSK", "ParaNo": 2,
                            "MODELIDSET": [len(station_indexes) + musk_index],
                            "PARAMETER": [1.0, 1.0], "UP": [1.0, 1.0], "DOWN": [0.0, 0.0]}
